@@ -71,6 +71,8 @@
   def loop(serv1, serv2, serv3) do
     IO.puts("Enter message (or 'all_done' to quit):")
     input = IO.gets("") |> String.trim()
+    #input = Code.eval_string(input)
+    input = elem(Code.eval_string(input), 0)
 
     case input do
       "all_done" ->
