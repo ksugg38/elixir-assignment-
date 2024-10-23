@@ -1,22 +1,22 @@
-defmodule Chain do
+ defmodule Chain do
   def start do
     serv1 = spawn(__MODULE__, :serv1, [])
     serv2 = spawn(__MODULE__, :serv2, [])
     serv3 = spawn(__MODULE__, :serv3, [0])
-    
+
     Process.link(serv1)
     Process.link(serv2)
     Process.link(serv3)
-    
+
     Process.register(serv2, :serv2)
     Process.register(serv3, :serv3)
-    
+
     loop(serv1, serv2, serv3)
   end
 
   def start_hot1(serv2, serv3) do
     serv1_hot = spawn(__MODULE__, :serv1_hot, [])
-    
+
     Process.unlink(serv2)
     Process.unlink(serv3)
     Process.unregister(:serv2)
@@ -25,10 +25,10 @@ defmodule Chain do
     Process.link(serv1_hot)
     Process.link(serv2)
     Process.link(serv3)
-    
+
     Process.register(serv2, :serv2)
     Process.register(serv3, :serv3)
-    
+
     loop(serv1_hot, serv2, serv3)
   end
 
@@ -68,9 +68,6 @@ defmodule Chain do
     loop(serv1, serv2, serv3_hot)
   end
 
-  # Define the loop and other functions (serv1, serv2, serv3, etc.) here
-
-  defmodule MyServer do
   def loop(serv1, serv2, serv3) do
     IO.puts("Enter message (or 'all_done' to quit):")
     input = IO.gets("") |> String.trim()
@@ -97,11 +94,11 @@ defmodule Chain do
     end
   end
 
-  def serv1() do
+  def serv1 do
     receive do
       :halt ->
         IO.puts("(serv1) Halting")
-        send(whereis(:serv2), :halt)
+        send(Process.whereis(:serv2), :halt)
 
       {:add, a, b} when is_number(a) and is_number(b) ->
         result = a + b
@@ -135,148 +132,117 @@ defmodule Chain do
 
       other ->
         IO.puts("(serv1) Forwarding unrecognized input: #{inspect(other)} to serv2")
-        send(whereis(:serv2), other)
+        send(Process.whereis(:serv2), other)
         serv1()
     end
   end
-end
 
-defmodule Serv1 do
-  def hot() do
+  def serv1_hot do
     receive do
       :halt ->
         IO.puts("(serv1_hot) Halting")
-        send(Process.whereis(Serv2), :halt)  # Send halt to serv2
+        send(Process.whereis(:serv2), :halt)
 
       {:add, a, b} when is_number(a) and is_number(b) ->
         result = a + b
         IO.puts("(serv1_hot) #{a} + #{b} = #{result}")
-        hot()
+        serv1_hot()
 
       {:sub, a, b} when is_number(a) and is_number(b) ->
         result = a - b
         IO.puts("(serv1_hot) #{a} - #{b} = #{result}")
-        hot()
+        serv1_hot()
 
       {:mult, a, b} when is_number(a) and is_number(b) ->
         result = a * b
         IO.puts("(serv1_hot) #{a} * #{b} = #{result}")
-        hot()
+        serv1_hot()
 
       {:divv, a, b} when is_number(a) and is_number(b) and b != 0 ->
         result = a / b
         IO.puts("(serv1_hot) #{a} / #{b} = #{result}")
-        hot()
+        serv1_hot()
 
       {:neg, a} when is_number(a) ->
         result = -a
         IO.puts("(serv1_hot) neg #{a} = #{result}")
-        hot()
+        serv1_hot()
 
       {:sqrt, a} when is_number(a) and a >= 0 ->
         result = :math.sqrt(a)
         IO.puts("(serv1_hot) sqrt(#{a}) = #{result}")
-        hot()
+        serv1_hot()
 
       other ->
         IO.puts("(serv1_hot) Forwarding unrecognized input: #{inspect(other)} to serv2")
-        send(Process.whereis(Serv2), other)
-        hot()
+        send(Process.whereis(:serv2), other)
+        serv1_hot()
     end
   end
-end
 
-defmodule Serv2 do
-  def hot() do
+  def serv2 do
     receive do
       :halt ->
         IO.puts("(serv2) Halting")
-        send(Process.whereis(Serv3), :halt)
+        send(Process.whereis(:serv3), :halt)
 
-      input when is_list(input) ->
-        if is_all_integers(input) do
-          sum = Enum.sum(input)
-          IO.puts("(serv2) Sum of list elements = #{sum}")
-          hot()
-        else
-          if is_all_floats(input) do
-            product = Enum.reduce(input, 1, &(&1 * &2))
-            IO.puts("(serv2) Product of list elements = #{product}")
-            hot()
-          else
-            IO.puts("(serv2) Forwarding unrecognized input: #{inspect(input)} to serv3")
-            send(Process.whereis(Serv3), input)
-            hot()
-          end
-        end
-
-      other ->
-        IO.puts("(serv2) Forwarding unrecognized input: #{inspect(other)} to serv3")
-        send(Process.whereis(Serv3), other)
-        hot()
-    end
-  end
-
-  defp is_all_integers(list) do
-    Enum.all?(list, &is_integer/1)
-  end
-
-  defp is_all_floats(list) do
-    Enum.all?(list, &is_float/1)
-  end
-end
-
-defmodule MyModule do
-  import Enum
-
-  # Helper function to check if all elements in a list are integers
-  def is_all_integers(list) do
-    Enum.all?(list, &is_integer/1)
-  end
-
-  # Helper function to check if all elements in a list are floats
-  def is_all_floats(list) do
-    Enum.all?(list, &is_float/1)
-  end
-
-  def is_likely_string(list) do
-    Enum.all?(list, fn x -> is_integer(x) and x >= 32 and x <= 126 end)
-  end
-
-  def serv2_hot() do
-    receive do
-      :halt ->
-        IO.puts("(serv2_hot) Halting")
-        send(whereis(:serv3), :halt)
-
-      # Handle a list of integers (ensure all elements are integers)
       input when is_list(input) ->
         cond do
           is_all_integers(input) ->
             sum = Enum.sum(input)
-            IO.puts("(serv2_hot) Sum of list elements = #{inspect(sum)}")
+            IO.puts("(serv2) Sum of list elements = #{sum}")
+            serv2()
+
+          is_all_floats(input) ->
+            product = Enum.reduce(input, 1, &(&1 * &2))
+            IO.puts("(serv2) Product of list elements = #{product}")
+            serv2()
+
+          true ->
+            IO.puts("(serv2) Forwarding unrecognized input: #{inspect(input)} to serv3")
+            send(Process.whereis(:serv3), input)
+            serv2()
+        end
+
+      other ->
+        IO.puts("(serv2) Forwarding unrecognized input: #{inspect(other)} to serv3")
+        send(Process.whereis(:serv3), other)
+        serv2()
+    end
+  end
+
+  def serv2_hot do
+    receive do
+      :halt ->
+        IO.puts("(serv2_hot) Halting")
+        send(Process.whereis(:serv3), :halt)
+
+      input when is_list(input) ->
+        cond do
+          is_all_integers(input) ->
+            sum = Enum.sum(input)
+            IO.puts("(serv2_hot) Sum of list elements = #{sum}")
             serv2_hot()
 
           is_all_floats(input) ->
             product = Enum.reduce(input, 1, &(&1 * &2))
-            IO.puts("(serv2_hot) Product of list elements = #{inspect(product)}")
+            IO.puts("(serv2_hot) Product of list elements = #{product}")
             serv2_hot()
 
           is_likely_string(input) ->
             IO.puts("(serv2_hot) Forwarding unrecognized string input: #{inspect(input)} to serv3")
-            send(whereis(:serv3), input)
+            send(Process.whereis(:serv3), input)
             serv2_hot()
 
           true ->
             IO.puts("(serv2_hot) Forwarding unrecognized input: #{inspect(input)} to serv3")
-            send(whereis(:serv3), input)
+            send(Process.whereis(:serv3), input)
             serv2_hot()
         end
 
-      # Any other message is forwarded to serv3
       other ->
         IO.puts("(serv2_hot) Forwarding unrecognized input: #{inspect(other)} to serv3")
-        send(whereis(:serv3), other)
+        send(Process.whereis(:serv3), other)
         serv2_hot()
     end
   end
@@ -284,10 +250,10 @@ defmodule MyModule do
   def serv3(count) do
     receive do
       :halt ->
-        IO.puts("(serv3) Halting. Unhandled message count: #{inspect(count)}")
+        IO.puts("(serv3) Halting. Unhandled message count: #{count}")
 
       {:error, message} ->
-        IO.puts("(serv3) Error: #{inspect(message)}")
+        IO.puts("(serv3) Error: #{message}")
         serv3(count)
 
       other ->
@@ -299,10 +265,10 @@ defmodule MyModule do
   def serv3_hot(count) do
     receive do
       :halt ->
-        IO.puts("(serv3_hot) Halting. Unhandled message count: #{inspect(count)}")
+        IO.puts("(serv3_hot) Halting. Unhandled message count: #{count}")
 
       {:error, message} ->
-        IO.puts("(serv3_hot) Error: #{inspect(message)}")
+        IO.puts("(serv3_hot) Error: #{message}")
         serv3_hot(count)
 
       other ->
@@ -310,9 +276,8 @@ defmodule MyModule do
         serv3_hot(count + 1)
     end
   end
+
+  defp is_all_integers(list), do: Enum.all?(list, &is_integer/1)
+  defp is_all_floats(list), do: Enum.all?(list, &is_float/1)
+  defp is_likely_string(list), do: Enum.all?(list, fn x -> is_integer(x) and x >= 32 and x <= 126 end)
 end
-
-
-
-end
-
